@@ -1,0 +1,273 @@
+.admin-page {
+  padding: 24px;
+}
+
+.admin-page h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.admin-tabs button {
+  padding: 12px 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: -2px;
+}
+
+.admin-tabs button:hover {
+  color: #101828;
+}
+
+.admin-tabs button.active {
+  color: #5b8def;
+  border-bottom-color: #5b8def;
+}
+
+.admin-content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.content-header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.btn-add {
+  padding: 10px 20px;
+  background: #5b8def;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-add:hover {
+  background: #4a7bd8;
+}
+
+.form-container {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.form-container h3 {
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: #101828;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 500;
+  color: #101828;
+  font-size: 14px;
+}
+
+.form-row input,
+.form-row select {
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: #5b8def;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: #5b8def;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #4a7bd8;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #e2e8f0;
+  color: #101828;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #cbd5e1;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table thead {
+  background: #f8fafc;
+}
+
+.admin-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.admin-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 14px;
+  color: #101828;
+}
+
+.admin-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.btn-edit,
+.btn-delete {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: all 0.2s;
+}
+
+.btn-edit {
+  background: #5b8def;
+  color: #fff;
+}
+
+.btn-edit:hover {
+  background: #4a7bd8;
+}
+
+.btn-delete {
+  background: #ef4444;
+  color: #fff;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+}
+
+.roles-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.role-card {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.role-card h3 {
+  font-size: 18px;
+  margin: 0 0 8px 0;
+  color: #101828;
+}
+
+.role-card p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.action-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.action-create {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.action-update {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.action-delete {
+  background: #fee2e2;
+  color: #991b1b;
+}
+

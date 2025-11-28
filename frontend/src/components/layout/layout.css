@@ -1,0 +1,62 @@
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+aside {
+  background: #101828;
+  color: #fff;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+aside h2 {
+  margin-bottom: 32px;
+}
+
+nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+nav a {
+  color: #f4f6fb;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+nav a.active {
+  background: #5b8def;
+}
+
+main {
+  padding: 32px;
+  background: #f8fafc;
+}
+
+.user-info {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 16px;
+  margin-top: 16px;
+}
+
+.user-info .role {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.user-info button {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+

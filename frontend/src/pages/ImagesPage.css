@@ -1,0 +1,124 @@
+.images-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.images-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+}
+
+.upload-card,
+.gallery-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.upload-card h2,
+.gallery-card h2 {
+  margin-bottom: 16px;
+}
+
+.upload-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #475467;
+  margin-bottom: 12px;
+}
+
+.upload-card select,
+.upload-card input {
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+}
+
+.upload-card .file-input input {
+  padding: 6px;
+}
+
+.upload-card button,
+.gallery-card button {
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  padding: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upload-card button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gallery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.gallery-grid article {
+  border: 1px solid #eef2f6;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gallery-grid .thumb {
+  height: 160px;
+  background: #0f172a10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-grid img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+}
+
+.gallery-grid header {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.gallery-grid .meta {
+  font-size: 12px;
+  color: #475467;
+  padding: 0 12px 8px;
+}
+
+.error {
+  color: #dc2626;
+  font-size: 14px;
+}
+
+@media (max-width: 1200px) {
+  .images-layout {
+    grid-template-columns: 1fr;
+  }
+}
+

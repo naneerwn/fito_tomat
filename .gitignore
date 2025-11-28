@@ -1,0 +1,88 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/media
+/staticfiles
+/static
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+
+# ML Model (можно загружать, если размер < 100MB)
+# best_effnet_b3.pth - загружаем в репозиторий (41 MB)
+
+# Generated reports
+generated_reports/
+*.pdf
+*.xlsx
+
+# Documents
+*.docx
+*.doc
+
+# Documentation (exclude specific files)
+docs/api_reference.md
+docs/lab3_report.md
+docs/ui_requirements.md
+
+# Heatmaps
+media/heatmaps/
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
