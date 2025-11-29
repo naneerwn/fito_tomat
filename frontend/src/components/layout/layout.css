@@ -11,6 +11,10 @@ aside {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
 }
 
 aside h2 {

@@ -78,6 +78,12 @@
   color: #92400e;
 }
 
+.changed-badge {
+  background: #fee2e2;
+  color: #991b1b;
+  margin-left: 8px;
+}
+
 .diagnosis-info p {
   margin: 4px 0;
   font-size: 14px;
@@ -201,9 +207,15 @@ form textarea:focus {
 }
 
 .image-comparison {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .image-comparison {
+    grid-template-columns: 1fr;
+  }
 }
 
 .image-container {
@@ -242,5 +254,42 @@ form textarea:focus {
   font-style: italic;
   background: #f8fafc;
   border-radius: 6px;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.field-label select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.field-label select:focus {
+  outline: none;
+  border-color: #5b8def;
+}
+
+.field-label select:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.disease-change-note {
+  margin-top: 4px;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.action-note {
+  margin-bottom: 12px;
+  color: #64748b;
+  font-size: 13px;
 }
 

@@ -7,5 +7,6 @@ export type ImageItem = {
   camera_id?: string | null;
   timestamp: string;
   uploaded_at: string;
+  image_url?: string | null;
 };
 

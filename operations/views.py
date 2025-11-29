@@ -1,5 +1,6 @@
 from typing import List, cast
 
+from django.db import transaction
 from django.db.models import QuerySet
 from rest_framework import viewsets
 from rest_framework.permissions import BasePermission, IsAdminUser, IsAuthenticated
@@ -23,6 +24,36 @@ class RecommendationViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsAgronomistOrAdmin()]
         return super().get_permissions()
+
+    def perform_create(self, serializer: RecommendationSerializer) -> None:  # type: ignore[override]
+        """
+        При создании рекомендации автоматически создаём связанную задачу для оператора,
+        если переданы operator_id и deadline.
+
+        Это реализует сценарий из ТЗ: после подтверждения диагноза и создания
+        рекомендации оператор получает задачу на выполнение плана лечения.
+        """
+        request = self.request
+        operator_id = request.data.get('operator_id')
+        deadline = request.data.get('deadline')
+        task_description = request.data.get('task_description') or ''
+
+        with transaction.atomic():
+            # Агроном берётся из текущего пользователя
+            recommendation = self.save_and_log_create(serializer, agronomist=request.user)
+
+            if operator_id and deadline:
+                description = task_description or (
+                    f'Выполнить план лечения по рекомендации #{recommendation.id} '
+                    f'для диагноза #{recommendation.diagnosis_id}'
+                )
+                Task.objects.create(
+                    recommendation=recommendation,
+                    operator_id=operator_id,
+                    description=description,
+                    status='Назначена',
+                    deadline=deadline,
+                )
 
 
 class TaskViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
