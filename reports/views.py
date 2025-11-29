@@ -1,11 +1,14 @@
 import json
+from typing import cast
 
-from rest_framework import viewsets, mixins
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django.db.models import QuerySet
+from rest_framework import mixins, viewsets
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 
 from common.audit import AuditLoggingMixin
-from .models import Report, AuditLog
-from .serializers import ReportSerializer, AuditLogSerializer
+from common.typing import RoleAwareUser
+from .models import AuditLog, Report
+from .serializers import AuditLogSerializer, ReportSerializer
 from .services import generate_report_payload, persist_report_file
 
 
@@ -14,13 +17,13 @@ class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     serializer_class = ReportSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        user = self.request.user
+    def get_queryset(self) -> QuerySet[Report]:
+        user = cast(RoleAwareUser, self.request.user)
         if user.is_staff or (user.role and user.role.name == 'Администратор'):
             return self.queryset
         return self.queryset.filter(user=user)
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: ReportSerializer) -> None:
         payload = generate_report_payload(
             serializer.validated_data['period_start'],
             serializer.validated_data['period_end'],

@@ -1,9 +1,13 @@
+from typing import cast
+
+from django.db.models import QuerySet
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from .models import Disease, Image, Diagnosis
 from .serializers import DiseaseSerializer, ImageSerializer, DiagnosisSerializer
 from common.audit import AuditLoggingMixin
+from common.typing import RoleAwareUser
 from users.permissions import IsAgronomistOrAdmin
 from .ml_service.diagnosis_service import run_ml_diagnosis
 
@@ -18,7 +22,7 @@ class ImageViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     serializer_class = ImageSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: ImageSerializer) -> None:
         # Автоматически привязываем загрузившего пользователя
         image_instance = self.save_and_log_create(serializer, user=self.request.user)
         
@@ -29,8 +33,8 @@ class ImageViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             # Логируем ошибку, но не прерываем создание изображения
             print(f"⚠️ Ошибка при автоматической диагностике: {e}")
 
-    def get_queryset(self):
-        user = self.request.user
+    def get_queryset(self) -> QuerySet[Image]:
+        user = cast(RoleAwareUser, self.request.user)
         # Оператор видит только свои, Агроном/Админ - все
         if user.role and user.role.name in ['Агроном', 'Администратор']:
             return Image.objects.all()

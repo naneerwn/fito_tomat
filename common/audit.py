@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TypeVar
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+
+from common.typing import (
+    ModelLike,
+    RequestWithUser,
+    RoleAwareUser,
+    SerializerProtocol,
+)
+
+
+TModel = TypeVar("TModel", bound=ModelLike)
 
 
 class AuditLoggingMixin:
@@ -13,23 +23,25 @@ class AuditLoggingMixin:
     Reusable mixin for ViewSets to log CREATE/UPDATE/DELETE operations into AuditLog.
     """
 
-    audit_serializer_class: Optional[type[serializers.ModelSerializer]] = None
+    audit_serializer_class: Optional[type[serializers.ModelSerializer[Any]]] = None
+    request: RequestWithUser
 
-    def _get_current_user(self) -> Optional[get_user_model()]:
+    def _get_current_user(self) -> Optional[RoleAwareUser]:
         user = getattr(self.request, "user", None)
-        if user and user.is_authenticated:
-            return user
-        return None
+        return user if user and user.is_authenticated else None
 
-    def _serialize_instance(self, instance: Any) -> Dict[str, Any]:
+    def _serialize_instance(self, instance: ModelLike) -> Dict[str, Any]:
         serializer_class = self.audit_serializer_class or self.get_serializer_class()
-        serializer = serializer_class(instance, context={"request": getattr(self, "request", None)})
+        serializer = serializer_class(
+            instance,
+            context={"request": getattr(self, "request", None)},
+        )
         return serializer.data
 
     def _create_audit_log(
         self,
         *,
-        instance: Any,
+        instance: ModelLike,
         action_type: str,
         old_values: Optional[Dict[str, Any]] = None,
         new_values: Optional[Dict[str, Any]] = None,
@@ -44,7 +56,11 @@ class AuditLoggingMixin:
             new_values=json.dumps(new_values, ensure_ascii=False) if new_values else None,
         )
 
-    def save_and_log_create(self, serializer: serializers.ModelSerializer, **save_kwargs: Any) -> Any:
+    def save_and_log_create(
+        self,
+        serializer: SerializerProtocol[TModel],
+        **save_kwargs: Any,
+    ) -> TModel:
         instance = serializer.save(**save_kwargs)
         self._create_audit_log(
             instance=instance,
@@ -53,7 +69,11 @@ class AuditLoggingMixin:
         )
         return instance
 
-    def update_and_log(self, serializer: serializers.ModelSerializer, **save_kwargs: Any) -> Any:
+    def update_and_log(
+        self,
+        serializer: SerializerProtocol[TModel],
+        **save_kwargs: Any,
+    ) -> TModel:
         instance_before = serializer.instance
         old_values = self._serialize_instance(instance_before)
         instance_after = serializer.save(**save_kwargs)
@@ -65,7 +85,7 @@ class AuditLoggingMixin:
         )
         return instance_after
 
-    def delete_and_log(self, instance: Any) -> None:
+    def delete_and_log(self, instance: ModelLike) -> None:
         old_values = self._serialize_instance(instance)
         self._create_audit_log(
             instance=instance,
