@@ -163,7 +163,17 @@ export function ImagesPage() {
                 return (
                   <article key={image.id}>
                     <div className="thumb">
-                      <img src={`${mediaHost}${image.file_path}`} alt={`Снимок ${image.id}`} />
+                      <img 
+                        src={image.image_url || `${mediaHost}${image.file_path}`} 
+                        alt={`Снимок ${image.id}`}
+                        onError={(e) => {
+                          // Fallback если image_url не работает
+                          const target = e.target as HTMLImageElement;
+                          if (!target.src.includes(mediaHost)) {
+                            target.src = `${mediaHost}${image.file_path}`;
+                          }
+                        }}
+                      />
                     </div>
                     <header>
                       <strong>#{image.id}</strong>

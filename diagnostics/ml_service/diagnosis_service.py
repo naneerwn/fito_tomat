@@ -71,10 +71,11 @@ def run_ml_diagnosis(image_instance: Image) -> Optional[Diagnosis]:
         # Генерируем тепловую карту (без сохранения на диск)
         heatmap_array = predictor.generate_gradcam(image_path, None)
         
-        # Создаем диагноз
+        # Создаем диагноз (сохраняем изначальный диагноз ML в ml_disease)
         diagnosis = Diagnosis.objects.create(
             image=image_instance,
             disease=disease,
+            ml_disease=disease,  # Сохраняем изначальный диагноз от ML
             confidence=confidence,
             is_verified=False,
             timestamp=timezone.now(),

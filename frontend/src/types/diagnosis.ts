@@ -21,6 +21,9 @@ export interface Diagnosis {
   image: number;
   disease: number;
   disease_name?: string;
+  ml_disease?: number | null;
+  ml_disease_name?: string | null;
+  is_manually_changed?: boolean;
   confidence: number;
   is_verified: boolean;
   verified_by: number | null;
@@ -28,6 +31,7 @@ export interface Diagnosis {
   timestamp: string;
   heatmap_path?: string | null;
   heatmap_url?: string | null;
+  image_url?: string | null;
 }
 
 export interface Treatment {

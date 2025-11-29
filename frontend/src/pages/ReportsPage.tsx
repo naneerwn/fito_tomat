@@ -36,9 +36,28 @@ export function ReportsPage() {
     });
   };
 
-  const handleDownload = (filePath: string) => {
-    // В реальном приложении здесь будет запрос к API для скачивания файла
-    window.open(`http://localhost:8000${filePath}`, '_blank');
+  const handleDownload = async (reportId: number) => {
+    try {
+      // Скачиваем файл через API endpoint
+      const response = await api.get(`/reports/${reportId}/download/`, {
+        responseType: 'blob',
+      });
+      
+      // Создаём временную ссылку для скачивания
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `report_${reportId}.json`);
+      
+      // Добавляем в DOM, кликаем и удаляем
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error);
+      alert('Не удалось скачать файл. Попробуйте позже.');
+    }
   };
 
   if (isLoading) {
@@ -119,7 +138,7 @@ export function ReportsPage() {
                   </div>
                   <button
                     className="btn-download"
-                    onClick={() => handleDownload(report.file_path)}
+                    onClick={() => handleDownload(report.id)}
                   >
                     Скачать
                   </button>

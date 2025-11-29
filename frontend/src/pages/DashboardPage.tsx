@@ -4,7 +4,7 @@ import { ReportData } from '../types/report';
 import './DashboardPage.css';
 
 export function DashboardPage() {
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, error } = useQuery({
     queryKey: ['reports', 'latest'],
     queryFn: async () => {
       const response = await api.get('/reports/');
@@ -12,13 +12,34 @@ export function DashboardPage() {
     },
   });
 
-  const reportData: ReportData | null = report?.data ? JSON.parse(report.data) : null;
+  // Безопасно парсим данные отчёта
+  let reportData: ReportData | null = null;
+  if (report?.data) {
+    try {
+      // Если data уже объект, используем его, иначе парсим строку
+      reportData = typeof report.data === 'string' ? JSON.parse(report.data) : report.data;
+    } catch (e) {
+      console.error('Ошибка при парсинге данных отчёта:', e);
+      reportData = null;
+    }
+  }
 
   if (isLoading) {
     return (
       <section className="dashboard">
         <h1>Дашборд</h1>
         <p>Загрузка данных...</p>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="dashboard">
+        <h1>Дашборд</h1>
+        <div className="empty-state">
+          <p>Ошибка при загрузке данных. Попробуйте обновить страницу.</p>
+        </div>
       </section>
     );
   }

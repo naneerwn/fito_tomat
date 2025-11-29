@@ -47,6 +47,7 @@ class Image(models.Model):
 class Diagnosis(models.Model):
     image = models.ForeignKey(Image, on_delete=models.CASCADE, related_name='diagnoses', verbose_name="Изображение")
     disease = models.ForeignKey(Disease, on_delete=models.PROTECT, verbose_name="Заболевание")
+    ml_disease = models.ForeignKey(Disease, on_delete=models.PROTECT, null=True, blank=True, related_name='ml_diagnoses', verbose_name="Изначальный диагноз ML")
     confidence = models.FloatField(verbose_name="Уверенность модели")
     is_verified = models.BooleanField(default=False, verbose_name="Верифицировано")
     verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_diagnoses', verbose_name="Кто проверил")
