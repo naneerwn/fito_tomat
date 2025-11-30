@@ -87,14 +87,23 @@ def test_recommendation_crud(api_client, agronomist_user, operator_user):
 
 
 @pytest.mark.django_db
-def test_report_generation(api_client, agronomist_user, operator_user, reports_tmp_dir):
+def test_report_crud_full_cycle(api_client, agronomist_user, operator_user, admin_user, reports_tmp_dir):
     """
-    Генерация отчета должна возвращать агрегированные данные и сохранять файл.
+    Тест полного CRUD цикла для отчетов.
     """
+    from reports.models import Report
+    from rest_framework import status
+
+    # Подготовка данных
     img = Image.objects.create(user=operator_user, file_path="rep.jpg", file_format="jpg", timestamp=timezone.now())
     disease = Disease.objects.create(name="Test disease", description="desc", symptoms="symp")
     diag = Diagnosis.objects.create(image=img, disease=disease, confidence=0.88)
-    recommendation = Recommendation.objects.create(diagnosis=diag, agronomist=agronomist_user, treatment_plan_text="Plan", status="New")
+    recommendation = Recommendation.objects.create(
+        diagnosis=diag,
+        agronomist=agronomist_user,
+        treatment_plan_text="Plan",
+        status="New"
+    )
     Task.objects.create(
         recommendation=recommendation,
         operator=operator_user,
@@ -102,6 +111,57 @@ def test_report_generation(api_client, agronomist_user, operator_user, reports_t
         status="New",
         deadline=timezone.now() + timezone.timedelta(days=1),
     )
+
+    # 1. CREATE - Создание отчета
+    api_client.force_authenticate(user=agronomist_user)
+    payload = {
+        'report_type': 'diagnostics_summary',
+        'period_start': (timezone.now() - timezone.timedelta(days=1)).isoformat(),
+        'period_end': (timezone.now() + timezone.timedelta(days=1)).isoformat(),
+    }
+    response = api_client.post('/api/reports/', payload, format='json')
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.data['data']['diagnostics']['total'] == 1
+    assert response.data['file_path']
+    report_id = response.data['id']
+    stored_file = Path(response.data['file_path'])
+    assert stored_file.exists()
+    content = json.loads(stored_file.read_text(encoding='utf-8'))
+    assert content['diagnostics']['total'] == 1
+
+    # 2. READ - Чтение списка отчетов
+    response = api_client.get('/api/reports/')
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['count'] >= 1
+
+    # 3. READ - Чтение детальной информации
+    response = api_client.get(f'/api/reports/{report_id}/')
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['id'] == report_id
+    assert response.data['report_type'] == 'diagnostics_summary'
+
+    # 4. UPDATE - Обновление отчета
+    response = api_client.patch(f'/api/reports/{report_id}/', {'report_type': 'updated_type'})
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['report_type'] == 'updated_type'
+
+    # 5. DELETE - Удаление отчета
+    response = api_client.delete(f'/api/reports/{report_id}/')
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Report.objects.filter(id=report_id).exists()
+
+
+@pytest.mark.django_db
+def test_report_download(api_client, agronomist_user, operator_user, reports_tmp_dir):
+    """
+    Тест: Скачивание файла отчета.
+    """
+    from reports.models import Report
+
+    # Создаем отчет
+    img = Image.objects.create(user=operator_user, file_path="rep.jpg", file_format="jpg", timestamp=timezone.now())
+    disease = Disease.objects.create(name="Test disease", description="desc", symptoms="symp")
+    diag = Diagnosis.objects.create(image=img, disease=disease, confidence=0.88)
 
     api_client.force_authenticate(user=agronomist_user)
     payload = {
@@ -111,12 +171,52 @@ def test_report_generation(api_client, agronomist_user, operator_user, reports_t
     }
     response = api_client.post('/api/reports/', payload, format='json')
     assert response.status_code == 201
-    assert response.data['data']['diagnostics']['total'] == 1
-    assert response.data['file_path']
-    stored_file = Path(response.data['file_path'])
-    assert stored_file.exists()
-    content = json.loads(stored_file.read_text(encoding='utf-8'))
-    assert content['diagnostics']['total'] == 1
+    report_id = response.data['id']
+
+    # Скачиваем отчет
+    response = api_client.get(f'/api/reports/{report_id}/download/')
+    assert response.status_code == 200
+    assert 'attachment' in response.get('Content-Disposition', '')
+    assert response['Content-Type'] == 'application/json'
+
+
+@pytest.mark.django_db
+def test_report_data_isolation(api_client, agronomist_user, operator_user, reports_tmp_dir):
+    """
+    Тест: Пользователи видят только свои отчеты (кроме админов).
+    """
+    from reports.models import Report
+
+    # Создаем отчеты для разных пользователей
+    api_client.force_authenticate(user=agronomist_user)
+    payload = {
+        'report_type': 'diagnostics_summary',
+        'period_start': (timezone.now() - timezone.timedelta(days=1)).isoformat(),
+        'period_end': (timezone.now() + timezone.timedelta(days=1)).isoformat(),
+    }
+    response = api_client.post('/api/reports/', payload, format='json')
+    assert response.status_code == 201
+    agro_report_id = response.data['id']
+
+    # Оператор создает свой отчет
+    api_client.force_authenticate(user=operator_user)
+    response = api_client.post('/api/reports/', payload, format='json')
+    assert response.status_code == 201
+    operator_report_id = response.data['id']
+
+    # Оператор видит только свой отчет
+    response = api_client.get('/api/reports/')
+    assert response.status_code == 200
+    assert response.data['count'] == 1
+    assert response.data['results'][0]['id'] == operator_report_id
+
+    # Агроном видит свой отчет
+    api_client.force_authenticate(user=agronomist_user)
+    response = api_client.get('/api/reports/')
+    assert response.status_code == 200
+    # Агроном должен видеть свой отчет
+    report_ids = [r['id'] for r in response.data['results']]
+    assert agro_report_id in report_ids
 
 
 @pytest.mark.django_db

@@ -1,0 +1,56 @@
+[run]
+source = .
+omit =
+    */venv/*
+    */.venv/*
+    */env/*
+    */ENV/*
+    */migrations/*
+    */__pycache__/*
+    */tests.py
+    */test_*.py
+    */conftest.py
+    */settings/*
+    */manage.py
+    */wsgi.py
+    */asgi.py
+    */admin.py
+    */apps.py
+    frontend/*
+    node_modules/*
+    .venv/*
+    venv/*
+    config*.py
+    */config*.py
+
+[report]
+# Исключаем из отчета файлы с низким покрытием
+exclude_lines =
+    # Прагма: не покрывать
+    pragma: no cover
+    # Не покрывать блоки def __repr__
+    def __repr__
+    # Не покрывать блоки raise AssertionError
+    raise AssertionError
+    # Не покрывать блоки raise NotImplementedError
+    raise NotImplementedError
+    # Не покрывать блоки if __name__ == .__main__.:
+    if __name__ == .__main__.:
+    # Не покрывать блоки if TYPE_CHECKING:
+    if TYPE_CHECKING:
+    # Не покрывать блоки @abstractmethod
+    @abstractmethod
+    # Не покрывать блоки class.*\(Protocol\):
+    class .*\(Protocol\):
+    # Не покрывать блоки @property
+    @property
+    # Не покрывать блоки @.*\.setter
+    @.*\.setter
+
+precision = 2
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+

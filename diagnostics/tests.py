@@ -78,42 +78,57 @@ def test_data_isolation(api_client, operator_user, operator_user_2, agronomist_u
 
 
 @pytest.mark.django_db
-def test_disease_catalog_permissions(api_client, agronomist_user, operator_user):
+def test_disease_catalog_permissions(api_client, agronomist_user, operator_user, admin_user):
     """
-    Тест: Справочник болезней.
+    Тест: Справочник болезней - полный CRUD.
     """
     # 1. Оператор может ЧИТАТЬ список болезней
-    Disease.objects.create(name="Rot", description="...", symptoms="...")
+    disease = Disease.objects.create(name="Rot", description="...", symptoms="...")
     api_client.force_authenticate(user=operator_user)
     response = api_client.get('/api/diseases/')
     assert response.status_code == 200
     assert response.data['count'] == 1
 
-    # 2. Оператор НЕ может СОЗДАВАТЬ болезни -> 403
-    # (Тут мы проверяем дефолтные права IsAuthenticated, если мы не ставили IsAdminOrReadOnly,
-    # то тест может упасть, и это подскажет нам донастроить views.py!)
-    # Допустим, в views.py мы оставили ModelViewSet без явных прав - тогда любой юзер может писать.
-    # В ТЗ сказано: "Добавление ... - Агроном, Администратор".
-    # Давайте проверим Агронома.
+    # 2. Оператор может читать детальную информацию
+    response = api_client.get(f'/api/diseases/{disease.id}/')
+    assert response.status_code == 200
+    assert response.data['name'] == 'Rot'
 
+    # 3. Оператор НЕ может СОЗДАВАТЬ болезни -> 403
+    data = {'name': 'Hacked Disease', 'description': 'Desc', 'symptoms': 'Symp'}
+    response = api_client.post('/api/diseases/', data)
+    assert response.status_code == 403
+
+    # 4. Агроном может создавать болезни
     api_client.force_authenticate(user=agronomist_user)
     data = {'name': 'New Disease', 'description': 'Desc', 'symptoms': 'Symp'}
     response = api_client.post('/api/diseases/', data)
     assert response.status_code == 201
+    new_disease_id = response.data['id']
+
+    # 5. Агроном может обновлять болезни
+    response = api_client.patch(f'/api/diseases/{new_disease_id}/', {'description': 'Updated Desc'})
+    assert response.status_code == 200
+    assert response.data['description'] == 'Updated Desc'
+
+    # 6. Админ может удалять болезни
+    api_client.force_authenticate(user=admin_user)
+    response = api_client.delete(f'/api/diseases/{new_disease_id}/')
+    assert response.status_code == 204
+    assert not Disease.objects.filter(id=new_disease_id).exists()
 
 
 @pytest.mark.django_db
-def test_diagnosis_workflow(api_client, agronomist_user, operator_user):
+def test_diagnosis_workflow(api_client, agronomist_user, operator_user, admin_user):
     """
-    Тест создания диагноза.
+    Тест полного CRUD цикла для диагнозов.
     """
     # Подготовка
     disease = Disease.objects.create(name="X", description="D", symptoms="S")
-    # Используем фикстуру для создания картинки, если нужно, или создаем тут
     from .models import Image
     img = Image.objects.create(user=operator_user, file_path="t.jpg", file_format="jpg", timestamp="2025-01-01 10:00")
 
-    # Агроном создает диагноз (по ТЗ диагноз ставит ML или Агроном)
+    # 1. CREATE - Агроном создает диагноз
     api_client.force_authenticate(user=agronomist_user)
     data = {
         'image': img.id,
@@ -124,3 +139,71 @@ def test_diagnosis_workflow(api_client, agronomist_user, operator_user):
     response = api_client.post('/api/diagnoses/', data)
     assert response.status_code == 201
     assert Diagnosis.objects.count() == 1
+    diagnosis_id = response.data['id']
+
+    # 2. READ - Чтение списка диагнозов
+    response = api_client.get('/api/diagnoses/')
+    assert response.status_code == 200
+    assert response.data['count'] == 1
+
+    # 3. READ - Чтение детальной информации
+    response = api_client.get(f'/api/diagnoses/{diagnosis_id}/')
+    assert response.status_code == 200
+    assert response.data['disease'] == disease.id
+
+    # 4. UPDATE - Агроном обновляет диагноз
+    response = api_client.patch(f'/api/diagnoses/{diagnosis_id}/', {'confidence': 0.95})
+    assert response.status_code == 200
+    assert response.data['confidence'] == 0.95
+
+    # 5. Оператор не может создавать диагнозы -> 403
+    api_client.force_authenticate(user=operator_user)
+    response = api_client.post('/api/diagnoses/', data)
+    assert response.status_code == 403
+
+    # 6. DELETE - Админ удаляет диагноз
+    api_client.force_authenticate(user=admin_user)
+    response = api_client.delete(f'/api/diagnoses/{diagnosis_id}/')
+    assert response.status_code == 204
+    assert not Diagnosis.objects.filter(id=diagnosis_id).exists()
+
+
+@pytest.mark.django_db
+def test_image_crud_full_cycle(api_client, operator_user, agronomist_user, admin_user, test_section_setup):
+    """
+    Тест полного CRUD цикла для изображений.
+    """
+    from .models import Image
+    from rest_framework import status
+
+    # 1. CREATE - Оператор загружает изображение (уже протестировано в test_operator_can_upload_image)
+    # Создаем изображение напрямую для тестирования других операций
+    img = Image.objects.create(
+        user=operator_user,
+        file_path="test_crud.jpg",
+        file_format="jpg",
+        section=test_section_setup
+    )
+
+    # 2. READ - Оператор читает свое изображение
+    api_client.force_authenticate(user=operator_user)
+    response = api_client.get(f'/api/images/{img.id}/')
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['id'] == img.id
+
+    # 3. READ - Агроном читает все изображения
+    api_client.force_authenticate(user=agronomist_user)
+    response = api_client.get('/api/images/')
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['count'] >= 1
+
+    # 4. UPDATE - Обновление информации об изображении
+    response = api_client.patch(f'/api/images/{img.id}/', {'file_format': 'png'})
+    assert response.status_code == status.HTTP_200_OK
+    img.refresh_from_db()
+    assert img.file_format == 'png'
+
+    # 5. DELETE - Удаление изображения
+    response = api_client.delete(f'/api/images/{img.id}/')
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Image.objects.filter(id=img.id).exists()
