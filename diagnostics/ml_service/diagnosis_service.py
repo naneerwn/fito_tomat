@@ -35,10 +35,10 @@ def run_ml_diagnosis(image_instance: Image) -> Optional[Diagnosis]:
     """
     Запустить ML-диагностику для загруженного изображения.
 
-    Args:
+    Параметры:
         image_instance: Экземпляр модели Image.
 
-    Returns:
+    Возвращает:
         Созданный Diagnosis или None в случае ошибки.
     """
     try:
@@ -49,7 +49,7 @@ def run_ml_diagnosis(image_instance: Image) -> Optional[Diagnosis]:
         image_path = image_instance.file_path.path
         
         if not os.path.exists(image_path):
-            print(f"⚠️ Файл изображения не найден: {image_path}")
+            print(f"Файл изображения не найден: {image_path}")
             return None
         
         # Получаем ML-сервис
@@ -62,7 +62,7 @@ def run_ml_diagnosis(image_instance: Image) -> Optional[Diagnosis]:
         try:
             disease = Disease.objects.get(name=disease_name)
         except Disease.DoesNotExist:
-            print(f"⚠️ Заболевание '{disease_name}' не найдено в БД")
+            print(f"Заболевание '{disease_name}' не найдено в БД")
             return None
         
         # Генерируем тепловую карту
@@ -96,11 +96,11 @@ def run_ml_diagnosis(image_instance: Image) -> Optional[Diagnosis]:
             save=True
         )
         
-        print(f"✅ Диагноз создан: {disease_name} (confidence: {confidence:.2%})")
+        print(f"Диагноз создан: {disease_name} (confidence: {confidence:.2%})")
         return diagnosis
         
     except Exception as e:
-        print(f"❌ Ошибка при ML-диагностике: {e}")
+        print(f"Ошибка при ML-диагностике: {e}")
         import traceback
         traceback.print_exc()
         return None

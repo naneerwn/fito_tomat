@@ -8,6 +8,7 @@ from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from common.audit import AuditLoggingMixin
 from common.typing import RoleAwareUser
@@ -17,7 +18,24 @@ from .serializers import AuditLogSerializer, ReportSerializer
 from .services import generate_report_payload, persist_report_file
 
 
+@extend_schema(
+    tags=['Отчеты'],
+    description='Управление отчетами системы. Позволяет создавать отчеты за указанный период и скачивать их в формате JSON.'
+)
 class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+    """
+    ViewSet для управления отчетами системы.
+    
+    - GET /api/reports/ - получить список отчетов (пользователи видят только свои, админы - все)
+    - GET /api/reports/{id}/ - получить информацию о конкретном отчете
+    - POST /api/reports/ - создать новый отчет за указанный период
+    - PUT /api/reports/{id}/ - обновить отчет
+    - PATCH /api/reports/{id}/ - частично обновить отчет
+    - DELETE /api/reports/{id}/ - удалить отчет
+    - GET /api/reports/{id}/download/ - скачать файл отчета в формате JSON
+    
+    При создании отчета автоматически генерируется JSON файл с данными за указанный период.
+    """
     queryset = Report.objects.select_related('user').all().order_by('-generated_at')
     serializer_class = ReportSerializer
     permission_classes = [IsAuthenticated]
@@ -43,6 +61,11 @@ class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         instance.file_path = str(report_file)
         instance.save(update_fields=['file_path'])
 
+    @extend_schema(
+        summary='Скачать файл отчета',
+        description='Скачивает JSON файл отчета по указанному ID',
+        tags=['Отчеты']
+    )
     @action(detail=True, methods=['get'], url_path='download')
     def download(self, request, pk=None):
         """Скачать файл отчёта."""
@@ -62,7 +85,25 @@ class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         )
 
 
+@extend_schema(
+    tags=['Отчеты'],
+    description='Просмотр журнала аудита системы. Доступно только администраторам. Содержит историю всех изменений в системе.'
+)
 class AuditLogViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """
+    ViewSet для просмотра журнала аудита системы.
+    
+    - GET /api/audit-logs/ - получить список записей журнала аудита (требуется роль Администратор)
+    - GET /api/audit-logs/{id}/ - получить информацию о конкретной записи аудита (требуется роль Администратор)
+    
+    Журнал аудита содержит информацию о всех изменениях в системе:
+    - Кто выполнил действие
+    - Какое действие было выполнено (создание, обновление, удаление)
+    - Какая таблица была изменена
+    - Старые и новые значения полей
+    
+    Доступ: только администраторы системы.
+    """
     queryset = AuditLog.objects.select_related('user').all().order_by('-created_at')
     serializer_class = AuditLogSerializer
     permission_classes = [IsAdminUser]

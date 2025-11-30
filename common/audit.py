@@ -20,7 +20,7 @@ TModel = TypeVar("TModel", bound=ModelLike)
 
 class AuditLoggingMixin:
     """
-    Reusable mixin for ViewSets to log CREATE/UPDATE/DELETE operations into AuditLog.
+    Переиспользуемый mixin для ViewSets для логирования операций CREATE/UPDATE/DELETE в AuditLog.
     """
 
     audit_serializer_class: Optional[type[serializers.ModelSerializer[Any]]] = None

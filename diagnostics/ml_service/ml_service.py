@@ -50,7 +50,7 @@ class TomatoDiseasePredictor:
         """
         Инициализация сервиса.
 
-        Args:
+        Параметры:
             model_path: Путь к файлу модели .pth. Если None, используется путь из settings.
         """
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -82,16 +82,16 @@ class TomatoDiseasePredictor:
         self.model.to(self.device)
         self.model.eval()
         
-        print(f"✅ Модель загружена: {self.model_path}")
+        print(f"Модель загружена: {self.model_path}")
 
     def preprocess_image(self, image_path: str) -> torch.Tensor:
         """
         Предобработка изображения для инференса.
 
-        Args:
+        Параметры:
             image_path: Путь к изображению.
 
-        Returns:
+        Возвращает:
             Тензор изображения [1, 3, 300, 300].
         """
         # Читаем через OpenCV для совместимости с кодом обучения
@@ -118,10 +118,10 @@ class TomatoDiseasePredictor:
         """
         Предсказание заболевания на изображении.
 
-        Args:
+        Параметры:
             image_path: Путь к изображению.
 
-        Returns:
+        Возвращает:
             Tuple (название_заболевания, confidence, вероятности_всех_классов).
         """
         img_tensor = self.preprocess_image(image_path)
@@ -147,11 +147,11 @@ class TomatoDiseasePredictor:
         """
         Генерация тепловой карты через GRAD-CAM.
 
-        Args:
+        Параметры:
             image_path: Путь к исходному изображению.
             output_path: Путь для сохранения результата. Если None, не сохраняется.
 
-        Returns:
+        Возвращает:
             Наложенная тепловая карта (RGB numpy array).
         """
         # Загружаем оригинальное изображение
@@ -175,25 +175,25 @@ class TomatoDiseasePredictor:
         def forward_hook(module, input, output):
             activations.append(output)
         
-        # Цепляемся к последнему сверточному слою EfficientNet
+        # Подключаемся к последнему сверточному слою EfficientNet
         target_layer = self.model.conv_head
         handle_b = target_layer.register_full_backward_hook(backward_hook)
         handle_f = target_layer.register_forward_hook(forward_hook)
         
         try:
-            # Forward pass
+            # Прямой проход
             output = self.model(img_tensor)
             pred_idx = output.argmax(dim=1)
             
-            # Backward pass
+            # Обратный проход
             self.model.zero_grad()
             output[0, pred_idx].backward()
             
             # Вычисляем веса
-            grads = gradients[0].cpu().data.numpy()[0]  # [Channels, H, W]
-            fmaps = activations[0].cpu().data.numpy()[0]  # [Channels, H, W]
+            grads = gradients[0].cpu().data.numpy()[0]  # [Каналы, H, W]
+            fmaps = activations[0].cpu().data.numpy()[0]  # [Каналы, H, W]
             
-            # Global Average Pooling градиентов
+            # Глобальное усреднение градиентов (Global Average Pooling)
             weights = np.mean(grads, axis=(1, 2))
             
             # Строим CAM
@@ -201,7 +201,7 @@ class TomatoDiseasePredictor:
             for i, w in enumerate(weights):
                 cam += w * fmaps[i]
             
-            # ReLU и нормализация
+            # Применение ReLU и нормализация
             cam = np.maximum(cam, 0)
             cam = cv2.resize(cam, (IMG_SIZE, IMG_SIZE))
             cam = cam - np.min(cam)

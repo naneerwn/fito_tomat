@@ -4,14 +4,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 # Импортируем views из drf-spectacular
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from users.auth_views import CustomTokenObtainPairView, CustomTokenRefreshView
 from .api_router import router
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
 
     # --- SWAGGER & OPENAPI ---
     # Генерация файла схемы (обычно нужно для фронтендеров или автогенерации клиентов)

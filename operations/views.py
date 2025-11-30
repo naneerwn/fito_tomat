@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import QuerySet
 from rest_framework import viewsets
 from rest_framework.permissions import BasePermission, IsAdminUser, IsAuthenticated
+from drf_spectacular.utils import extend_schema
 from .models import Recommendation, Task
 from .serializers import RecommendationSerializer, TaskSerializer, OperatorTaskUpdateSerializer
 from common.audit import AuditLoggingMixin
@@ -11,7 +12,29 @@ from common.typing import RoleAwareUser
 from users.permissions import IsAgronomistOrAdmin
 
 
+@extend_schema(
+    tags=['Операции'],
+    description='Управление рекомендациями по лечению. Агрономы создают рекомендации на основе диагнозов, при создании можно автоматически создать задачу для оператора.'
+)
 class RecommendationViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+    """
+    ViewSet для управления рекомендациями по лечению.
+    
+    - GET /api/recommendations/ - получить список всех рекомендаций
+    - GET /api/recommendations/{id}/ - получить информацию о конкретной рекомендации
+    - POST /api/recommendations/ - создать новую рекомендацию (требуется роль Агроном или Администратор)
+      При создании можно передать operator_id и deadline для автоматического создания задачи
+    - PUT /api/recommendations/{id}/ - обновить рекомендацию (требуется роль Агроном или Администратор)
+    - PATCH /api/recommendations/{id}/ - частично обновить рекомендацию (требуется роль Агроном или Администратор)
+    - DELETE /api/recommendations/{id}/ - удалить рекомендацию (требуется роль Администратор)
+    
+    Права доступа:
+    - Просмотр: все авторизованные пользователи
+    - Создание/Изменение: Агрономы и Администраторы
+    - Удаление: только Администраторы
+    
+    При создании рекомендации можно указать operator_id и deadline для автоматического создания задачи оператору.
+    """
     queryset = Recommendation.objects.all()
     serializer_class = RecommendationSerializer
     permission_classes = [IsAuthenticated]
@@ -56,7 +79,28 @@ class RecommendationViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
                 )
 
 
+@extend_schema(
+    tags=['Операции'],
+    description='Управление задачами для операторов. Операторы могут обновлять статус своих задач, агрономы создают и управляют всеми задачами.'
+)
 class TaskViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+    """
+    ViewSet для управления задачами операторов.
+    
+    - GET /api/tasks/ - получить список задач (операторы видят только свои, агрономы и админы - все)
+    - GET /api/tasks/{id}/ - получить информацию о конкретной задаче
+    - POST /api/tasks/ - создать новую задачу (требуется роль Агроном или Администратор)
+    - PUT /api/tasks/{id}/ - обновить задачу (операторы могут обновлять только статус)
+    - PATCH /api/tasks/{id}/ - частично обновить задачу (операторы могут обновлять только статус)
+    - DELETE /api/tasks/{id}/ - удалить задачу (требуется роль Агроном или Администратор)
+    
+    Права доступа:
+    - Просмотр: все авторизованные пользователи (операторы видят только свои задачи)
+    - Создание/Удаление: Агрономы и Администраторы
+    - Обновление: операторы могут обновлять только статус своих задач, агрономы и админы - все поля
+    
+    Операторы используют ограниченный сериализатор, который позволяет изменять только статус задачи.
+    """
     queryset = Task.objects.all()
     permission_classes = [IsAuthenticated]
 
