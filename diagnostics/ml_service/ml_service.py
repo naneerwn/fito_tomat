@@ -60,7 +60,7 @@ class TomatoDiseasePredictor:
         if not self.model_path:
             # Путь по умолчанию
             base_dir = Path(settings.BASE_DIR)
-            self.model_path = str(base_dir / 'best_effnet_b3.pth')
+            self.model_path = str(base_dir / 'models' / 'EfficientNet-B3_best.pth')
         
         self._load_model()
 
@@ -160,63 +160,92 @@ class TomatoDiseasePredictor:
             raise ValueError(f"Не удалось загрузить изображение: {image_path}")
         
         orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-        orig_img_resized = cv2.resize(orig_img, (IMG_SIZE, IMG_SIZE))
+        orig_h, orig_w = orig_img.shape[:2]
         
-        # Подготавливаем тензор
+        # Подготавливаем тензор с requires_grad=True для вычисления градиентов
         img_tensor = self.preprocess_image(image_path)
+        img_tensor.requires_grad_(True)
         
         # Регистрируем хуки для перехвата градиентов и активаций
         gradients = []
         activations = []
         
         def backward_hook(module, grad_input, grad_output):
-            gradients.append(grad_output[0])
+            if grad_output[0] is not None:
+                gradients.append(grad_output[0].detach())
         
         def forward_hook(module, input, output):
-            activations.append(output)
+            activations.append(output.detach())
         
         # Подключаемся к последнему сверточному слою EfficientNet
+        # Для EfficientNet используем conv_head (последний сверточный слой перед pooling)
         target_layer = self.model.conv_head
+        if target_layer is None:
+            # Если conv_head не найден, ищем последний Conv2d слой
+            for module in reversed(list(self.model.modules())):
+                if isinstance(module, torch.nn.Conv2d):
+                    target_layer = module
+                    break
+        
+        if target_layer is None:
+            raise ValueError("Не удалось найти подходящий сверточный слой для GRAD-CAM")
+        
         handle_b = target_layer.register_full_backward_hook(backward_hook)
         handle_f = target_layer.register_forward_hook(forward_hook)
         
         try:
             # Прямой проход
+            self.model.eval()
             output = self.model(img_tensor)
-            pred_idx = output.argmax(dim=1)
+            pred_idx = output.argmax(dim=1).item()
             
             # Обратный проход
             self.model.zero_grad()
-            output[0, pred_idx].backward()
+            # Используем logits для правильного вычисления градиентов
+            score = output[0, pred_idx]
+            score.backward()
+            
+            # Проверяем, что градиенты получены
+            if len(gradients) == 0 or len(activations) == 0:
+                raise ValueError("Не удалось получить градиенты или активации")
             
             # Вычисляем веса
-            grads = gradients[0].cpu().data.numpy()[0]  # [Каналы, H, W]
-            fmaps = activations[0].cpu().data.numpy()[0]  # [Каналы, H, W]
+            grads = gradients[0].cpu().numpy()[0]  # [Каналы, H, W]
+            fmaps = activations[0].cpu().numpy()[0]  # [Каналы, H, W]
+            
+            # Проверяем размеры
+            if len(grads.shape) != 3 or len(fmaps.shape) != 3:
+                raise ValueError(f"Неожиданная форма градиентов или активаций: grads={grads.shape}, fmaps={fmaps.shape}")
             
             # Глобальное усреднение градиентов (Global Average Pooling)
-            weights = np.mean(grads, axis=(1, 2))
+            # Усредняем по пространственным измерениям (H, W)
+            weights = np.mean(grads, axis=(1, 2))  # [Каналы]
             
-            # Строим CAM
-            cam = np.zeros(fmaps.shape[1:], dtype=np.float32)
+            # Строим CAM: взвешенная сумма feature maps
+            cam = np.zeros(fmaps.shape[1:], dtype=np.float32)  # [H, W]
             for i, w in enumerate(weights):
                 cam += w * fmaps[i]
             
-            # Применение ReLU и нормализация
+            # Применение ReLU (убираем отрицательные значения)
             cam = np.maximum(cam, 0)
-            cam = cv2.resize(cam, (IMG_SIZE, IMG_SIZE))
+            
+            # Нормализация к [0, 1]
             cam = cam - np.min(cam)
             if np.max(cam) > 0:
                 cam = cam / np.max(cam)
             
+            # Изменяем размер до оригинального размера изображения
+            cam_resized = cv2.resize(cam, (orig_w, orig_h))
+            
             # Применяем цветовую карту
             heatmap_colored = cv2.applyColorMap(
-                np.uint8(255 * cam),
+                np.uint8(255 * cam_resized),
                 cv2.COLORMAP_JET
             )
             heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
             
-            # Наложение на оригинал
-            superimposed = np.uint8(0.6 * orig_img_resized + 0.4 * heatmap_colored)
+            # Наложение на оригинал (используем оригинальный размер)
+            superimposed = np.uint8(0.6 * orig_img + 0.4 * heatmap_colored)
             
             # Сохраняем, если указан путь
             if output_path:
@@ -228,6 +257,8 @@ class TomatoDiseasePredictor:
             # Удаляем хуки
             handle_b.remove()
             handle_f.remove()
+            # Отключаем requires_grad
+            img_tensor.requires_grad_(False)
 
 
 # Глобальный экземпляр сервиса (singleton)

@@ -2,6 +2,43 @@
   padding: 24px;
 }
 
+.diagnoses-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.diagnoses-toolbar h2 {
+  margin: 0;
+}
+
+.toolbar-hint {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: #475467;
+}
+
 .diagnoses-page h1 {
   margin-bottom: 24px;
   font-size: 28px;
@@ -10,13 +47,25 @@
 
 .diagnoses-layout {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr;
   gap: 24px;
+}
+
+.diagnoses-layout.with-detail {
+  grid-template-columns: 300px 1fr;
+}
+
+.diagnoses-list {
+  position: sticky;
+  top: 24px;
+  height: fit-content;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 
 .diagnoses-list h2 {
   font-size: 18px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   color: #101828;
 }
 
@@ -99,10 +148,55 @@
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 24px;
-  max-height: calc(100vh - 48px);
   overflow-y: auto;
+  min-height: calc(100vh - 120px);
+}
+
+.diagnosis-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.diagnosis-detail-header h2 {
+  margin: 0;
+}
+
+.btn-close {
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  background: #cbd5e1;
+  color: #101828;
+}
+
+.diagnosis-detail-placeholder {
+  background: #fff;
+  border-radius: 8px;
+  padding: 48px;
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
 }
 
 .diagnosis-detail h2 {
@@ -209,7 +303,23 @@ form textarea:focus {
 .image-comparison {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 24px;
+}
+
+@media (max-width: 1200px) {
+  .diagnoses-layout.with-detail {
+    grid-template-columns: 1fr;
+  }
+  
+  .diagnoses-list {
+    position: relative;
+    top: 0;
+    max-height: none;
+  }
+  
+  .diagnosis-detail {
+    min-height: auto;
+  }
 }
 
 @media (max-width: 900px) {

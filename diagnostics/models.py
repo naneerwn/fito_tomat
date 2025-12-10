@@ -49,6 +49,8 @@ class Diagnosis(models.Model):
     disease = models.ForeignKey(Disease, on_delete=models.PROTECT, verbose_name="Заболевание")
     ml_disease = models.ForeignKey(Disease, on_delete=models.PROTECT, null=True, blank=True, related_name='ml_diagnoses', verbose_name="Изначальный диагноз ML")
     confidence = models.FloatField(verbose_name="Уверенность модели")
+    model_type = models.CharField(max_length=50, null=True, blank=True, verbose_name="Тип ML-модели", help_text="Тип модели, использованной для диагностики: effnet, custom_cnn, vit, yolo")
+    model_accuracy = models.FloatField(null=True, blank=True, verbose_name="Точность модели", help_text="Точность модели на тестовом наборе (в процентах)")
     is_verified = models.BooleanField(default=False, verbose_name="Верифицировано")
     verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_diagnoses', verbose_name="Кто проверил")
     verified_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата проверки")
@@ -59,3 +61,4 @@ class Diagnosis(models.Model):
         db_table = 'diagnoses'  # [cite: 807]
         verbose_name = 'Диагноз'
         verbose_name_plural = 'Диагнозы'
+        ordering = ['-timestamp', '-id']

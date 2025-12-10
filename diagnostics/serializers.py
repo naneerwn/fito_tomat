@@ -1,3 +1,5 @@
+from typing import Optional
+
 from rest_framework import serializers
 from .models import Disease, Treatment, Image, Diagnosis
 
@@ -10,12 +12,23 @@ class DiseaseSerializer(serializers.ModelSerializer):
 
 class ImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    model_type = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        help_text='Тип ML-модели для диагностики: effnet, custom_cnn, vit, yolo. Если не указан, используется модель по умолчанию.',
+    )
 
     class Meta:
         model = Image
-        fields = ['id', 'section', 'user', 'file_path', 'file_format', 'camera_id', 'timestamp', 'uploaded_at', 'image_url']
+        fields = ['id', 'section', 'user', 'file_path', 'file_format', 'camera_id', 'timestamp', 'uploaded_at', 'image_url', 'model_type']
         read_only_fields = ('user', 'uploaded_at', 'image_url')  # Пользователь проставляется автоматически
         ordering = ['-timestamp']
+
+    def create(self, validated_data):
+        # model_type используется только для выбора ML-модели, не хранится в Image
+        validated_data.pop('model_type', None)
+        return super().create(validated_data)
 
     def get_image_url(self, obj):
         """Возвращает полный URL для доступа к изображению."""
@@ -33,10 +46,24 @@ class DiagnosisSerializer(serializers.ModelSerializer):
     is_manually_changed = serializers.SerializerMethodField()
     heatmap_url = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
+    model_type_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Diagnosis
         fields = '__all__'
+    
+    def get_model_type_display(self, obj: Diagnosis) -> Optional[str]:
+        """Возвращает читаемое название типа модели."""
+        if not obj.model_type:
+            return None
+        
+        model_names = {
+            'effnet': 'EfficientNet-B3',
+            'custom_cnn': 'Custom CNN (TomatoNet)',
+            'vit': 'Vision Transformer',
+            'yolo': 'YOLO',
+        }
+        return model_names.get(obj.model_type, obj.model_type)
 
     def get_is_manually_changed(self, obj: Diagnosis) -> bool:
         """Проверяет, был ли диагноз изменён вручную агрономом."""

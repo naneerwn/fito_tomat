@@ -25,6 +25,9 @@ export interface Diagnosis {
   ml_disease_name?: string | null;
   is_manually_changed?: boolean;
   confidence: number;
+  model_type?: string | null;
+  model_type_display?: string | null;
+  model_accuracy?: number | null;
   is_verified: boolean;
   verified_by: number | null;
   verified_at: string | null;
