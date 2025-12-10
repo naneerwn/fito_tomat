@@ -7,6 +7,7 @@ import './ReportsPage.css';
 export function ReportsPage() {
   const queryClient = useQueryClient();
   const [showGenerateForm, setShowGenerateForm] = useState(false);
+  const [downloadFormatById, setDownloadFormatById] = useState<Record<number, 'excel' | 'pdf'>>({});
 
   const { data: reports, isLoading } = useQuery({
     queryKey: ['reports'],
@@ -36,20 +37,22 @@ export function ReportsPage() {
     });
   };
 
+  const getFormat = (reportId: number) => downloadFormatById[reportId] || 'excel';
+
   const handleDownload = async (reportId: number) => {
     try {
-      // Скачиваем файл через API endpoint
-      const response = await api.get(`/reports/${reportId}/download/`, {
+      const format = getFormat(reportId);
+      const endpoint = format === 'excel' ? `/reports/${reportId}/download-excel/` : `/reports/${reportId}/download-pdf/`;
+
+      const filename = format === 'excel' ? `report_${reportId}.xlsx` : `report_${reportId}.pdf`;
+
+      const response = await api.get(endpoint, {
         responseType: 'blob',
       });
-      
-      // Создаём временную ссылку для скачивания
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `report_${reportId}.json`);
-      
-      // Добавляем в DOM, кликаем и удаляем
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -136,12 +139,26 @@ export function ReportsPage() {
                       {report.report_type} • {new Date(report.generated_at).toLocaleString('ru-RU')}
                     </p>
                   </div>
-                  <button
-                    className="btn-download"
-                    onClick={() => handleDownload(report.id)}
-                  >
-                    Скачать
-                  </button>
+                  <div className="download-controls">
+                    <select
+                      value={getFormat(report.id)}
+                      onChange={(e) =>
+                        setDownloadFormatById((prev) => ({
+                          ...prev,
+                          [report.id]: e.target.value as 'excel' | 'pdf',
+                        }))
+                      }
+                    >
+                      <option value="excel">Excel (XLSX)</option>
+                      <option value="pdf">PDF</option>
+                    </select>
+                    <button
+                      className="btn-download"
+                      onClick={() => handleDownload(report.id)}
+                    >
+                      Скачать
+                    </button>
+                  </div>
                 </div>
                 <div className="report-period">
                   <strong>Период:</strong> {new Date(report.period_start).toLocaleDateString('ru-RU')} - {new Date(report.period_end).toLocaleDateString('ru-RU')}

@@ -13,13 +13,27 @@ export function DiagnosesPage() {
   const [treatmentPlan, setTreatmentPlan] = useState<string>('');
   const [selectedOperatorId, setSelectedOperatorId] = useState<number | null>(null);
   const [deadline, setDeadline] = useState<string>('');
+  const [showRecreateForm, setShowRecreateForm] = useState(false);
+  const [selectedModelForRecreate, setSelectedModelForRecreate] = useState<string>('');
 
-  const { data: diagnoses, isLoading } = useQuery({
-    queryKey: ['diagnoses'],
+  const [page, setPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize) || 1);
+
+  const { data: diagnoses, isLoading, isFetching } = useQuery({
+    queryKey: ['diagnoses', page],
     queryFn: async () => {
-      const response = await api.get('/diagnoses/');
+      const response = await api.get('/diagnoses/', {
+        params: {
+          page,
+          ordering: '-timestamp',
+        },
+      });
+      setTotalCount(response.data.count ?? 0);
       return response.data.results as Diagnosis[];
     },
+    keepPreviousData: true,
   });
 
   const { data: diseases } = useQuery({
@@ -35,6 +49,14 @@ export function DiagnosesPage() {
     queryFn: async () => {
       const response = await api.get('/users/');
       return response.data.results as AuthUser[];
+    },
+  });
+
+  const { data: availableModels = [] } = useQuery({
+    queryKey: ['available-models'],
+    queryFn: async () => {
+      const { data } = await api.get('/images/available-models/');
+      return data.models || [];
     },
   });
 
@@ -75,6 +97,21 @@ export function DiagnosesPage() {
       setDeadline('');
     },
   });
+
+  const recreateDiagnosisMutation = useMutation({
+    mutationFn: async ({ diagnosisId, modelType }: { diagnosisId: number; modelType: string }) => {
+      const { data } = await api.post(`/diagnoses/${diagnosisId}/recreate/`, { model_type: modelType });
+      return data as Diagnosis;
+    },
+    onSuccess: (newDiagnosis) => {
+      // Обновляем список диагнозов и устанавливаем выбранным новый диагноз
+      queryClient.invalidateQueries({ queryKey: ['diagnoses'] });
+      setShowRecreateForm(false);
+      setSelectedModelForRecreate('');
+      setSelectedDiagnosis(newDiagnosis);
+    },
+  });
+
 
   const handleCreateRecommendation = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -139,11 +176,37 @@ export function DiagnosesPage() {
   return (
     <div className="diagnoses-page">
       <h1>Диагностика заболеваний</h1>
-
-      <div className="diagnoses-layout">
-        <div className="diagnoses-list">
+      <div className="diagnoses-toolbar">
+        <div>
           <h2>Очередь диагнозов</h2>
-          {diagnoses && diagnoses.length > 0 ? (
+          <p className="toolbar-hint">Выберите запись, чтобы открыть детали и действия</p>
+        </div>
+        <div className="pagination">
+          <button
+            className="btn btn-secondary"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1 || isFetching}
+          >
+            ⟵ Пред
+          </button>
+          <span className="pagination-info">
+            Стр. {page} из {totalPages}
+          </span>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+            disabled={page >= totalPages || isFetching}
+          >
+            След ⟶
+          </button>
+        </div>
+      </div>
+
+      <div className={`diagnoses-layout ${selectedDiagnosis ? 'with-detail' : ''}`}>
+        <div className="diagnoses-list">
+          {isLoading || isFetching ? (
+            <p className="empty-message">Загрузка...</p>
+          ) : diagnoses && diagnoses.length > 0 ? (
             <div className="diagnosis-cards">
               {diagnoses.map((diag) => (
                 <div
@@ -165,7 +228,9 @@ export function DiagnosesPage() {
                         </span>
                       )}
                     </p>
-                    <p><strong>Уверенность:</strong> {(diag.confidence * 100).toFixed(1)}%</p>
+                    <p>
+                      <strong>Уверенность:</strong> {(diag.confidence * 100).toFixed(1)}%
+                    </p>
                     <p><strong>Дата:</strong> {new Date(diag.timestamp).toLocaleString('ru-RU')}</p>
                   </div>
                 </div>
@@ -176,9 +241,21 @@ export function DiagnosesPage() {
           )}
         </div>
 
-        {selectedDiagnosis && (
+        {selectedDiagnosis ? (
           <div className="diagnosis-detail">
-            <h2>Детали диагноза #{selectedDiagnosis.id}</h2>
+            <div className="diagnosis-detail-header">
+              <h2>Детали диагноза #{selectedDiagnosis.id}</h2>
+              <button
+                className="btn-close"
+                onClick={() => {
+                  setSelectedDiagnosis(null);
+                  setShowRecommendationForm(false);
+                }}
+                aria-label="Закрыть детали"
+              >
+                ✕
+              </button>
+            </div>
             
             {/* Визуализация изображений */}
             <div className="detail-section">
@@ -233,7 +310,12 @@ export function DiagnosesPage() {
                     </p>
                   )}
                 </label>
-                <p><strong>Уверенность модели:</strong> {(selectedDiagnosis.confidence * 100).toFixed(1)}%</p>
+                <p>
+                  <strong>Уверенность модели:</strong> {(selectedDiagnosis.confidence * 100).toFixed(1)}%
+                </p>
+                {selectedDiagnosis.model_type_display && (
+                  <p><strong>Модель:</strong> {selectedDiagnosis.model_type_display}</p>
+                )}
                 <p><strong>Статус:</strong> {selectedDiagnosis.is_verified ? 'Подтверждён' : 'Ожидает проверки и создания рекомендации'}</p>
               </div>
 
@@ -243,12 +325,71 @@ export function DiagnosesPage() {
                 <p className="action-note">
                   <small>Для подтверждения диагноза необходимо создать рекомендацию и задачу.</small>
                 </p>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setShowRecommendationForm(true)}
-                >
-                  Создать рекомендацию и задачу
-                </button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowRecommendationForm(true)}
+                  >
+                    Создать рекомендацию и задачу
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setShowRecreateForm(true)}
+                  >
+                    Пересоздать с другой моделью
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showRecreateForm && (
+              <div className="detail-section">
+                <h3>Пересоздать диагноз с другой моделью</h3>
+                <p className="action-note">
+                  <small>Выберите ML-модель для пересоздания диагноза. Старый диагноз будет удален.</small>
+                </p>
+                <label>
+                  ML-модель:
+                  <select
+                    value={selectedModelForRecreate}
+                    onChange={(e) => setSelectedModelForRecreate(e.target.value)}
+                    required
+                  >
+                    <option value="">Выберите модель</option>
+                    {availableModels.map((model: any) => (
+                      <option key={model.value} value={model.value} title={model.description}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (selectedModelForRecreate && selectedDiagnosis) {
+                        recreateDiagnosisMutation.mutate({
+                          diagnosisId: selectedDiagnosis.id,
+                          modelType: selectedModelForRecreate,
+                        });
+                      }
+                    }}
+                    disabled={!selectedModelForRecreate || recreateDiagnosisMutation.isPending}
+                  >
+                    {recreateDiagnosisMutation.isPending ? 'Пересоздание...' : 'Пересоздать диагноз'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowRecreateForm(false);
+                      setSelectedModelForRecreate('');
+                    }}
+                  >
+                    Отмена
+                  </button>
+                </div>
               </div>
             )}
 
@@ -312,6 +453,10 @@ export function DiagnosesPage() {
                 </form>
               </div>
             )}
+          </div>
+        ) : (
+          <div className="diagnosis-detail-placeholder">
+            <p>Выберите диагноз из списка для просмотра деталей</p>
           </div>
         )}
       </div>

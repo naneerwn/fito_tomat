@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { Greenhouse, Section } from '../types/infrastructure';
@@ -14,12 +15,21 @@ const extractResults = <T,>(payload: any): T[] => {
   return payload.results ?? payload;
 };
 
+interface MLModel {
+  value: string;
+  label: string;
+  description: string;
+}
+
 export function ImagesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selectedGreenhouse, setSelectedGreenhouse] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [cameraId, setCameraId] = useState('');
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const { data: greenhouses = [] } = useQuery<Greenhouse[]>({
     queryKey: ['greenhouses'],
@@ -45,6 +55,14 @@ export function ImagesPage() {
     },
   });
 
+  const { data: availableModels = [] } = useQuery<MLModel[]>({
+    queryKey: ['available-models'],
+    queryFn: async () => {
+      const { data } = await api.get('/images/available-models/');
+      return data.models || [];
+    },
+  });
+
   const filteredSections = useMemo(() => {
     if (!selectedGreenhouse) {
       return sections;
@@ -64,6 +82,9 @@ export function ImagesPage() {
       if (cameraId) {
         formData.append('camera_id', cameraId);
       }
+      if (selectedModel) {
+        formData.append('model_type', selectedModel);
+      }
       return api.post('/images/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -71,6 +92,8 @@ export function ImagesPage() {
     onSuccess: () => {
       setFile(null);
       setCameraId('');
+      setSelectedModel('');
+      setUploadSuccess(true);
       queryClient.invalidateQueries({ queryKey: ['images'] });
     },
   });
@@ -127,6 +150,23 @@ export function ImagesPage() {
             <input value={cameraId} onChange={(e) => setCameraId(e.target.value)} placeholder="CAM-01" />
           </label>
 
+          <label>
+            ML-модель для диагностики
+            <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+              <option value="">По умолчанию (из настроек)</option>
+              {availableModels.map((model) => (
+                <option key={model.value} value={model.value} title={model.description}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+            {selectedModel && (
+              <small style={{ color: '#64748b', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                {availableModels.find((m) => m.value === selectedModel)?.description}
+              </small>
+            )}
+          </label>
+
           <label className="file-input">
             Файл изображения
             <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
@@ -134,6 +174,15 @@ export function ImagesPage() {
 
           {uploadMutation.isError && (
             <p className="error">Ошибка загрузки. Проверьте файл и заполненные поля.</p>
+          )}
+
+          {uploadSuccess && (
+            <div className="upload-success">
+              <p>Фото загружено. Диагностика запускается автоматически.</p>
+              <button type="button" onClick={() => navigate('/diagnoses')}>
+                Перейти к диагностике
+              </button>
+            </div>
           )}
 
           <button type="submit" disabled={!file || !selectedSection || uploadMutation.isLoading}>

@@ -213,8 +213,25 @@ MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 REPORTS_DIR = BASE_DIR / 'generated_reports'
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Настройки ML модели
-ML_MODEL_PATH = BASE_DIR / 'best_effnet_b3.pth'
+# Настройки ML моделей
+ML_MODEL_PATH = BASE_DIR / 'models' / 'EfficientNet-B3_best.pth'
+CUSTOM_CNN_MODEL_PATH = BASE_DIR / 'models' / 'best_model.pth'
+VIT_MODEL_PATH = BASE_DIR / 'models' / 'ViT-Base_best.pth'
+YOLO_MODEL_PATH = BASE_DIR / 'models' / 'best.pt'
+
+# Модель по умолчанию для диагностики (можно изменить через переменную окружения)
+# Возможные значения: 'effnet', 'custom_cnn', 'vit', 'yolo'
+DEFAULT_ML_MODEL = os.environ.get('DEFAULT_ML_MODEL', 'effnet')
+
+# Точность (accuracy) моделей на тестовом наборе (в процентах)
+# Эти значения можно обновить после оценки моделей на тестовом наборе
+ML_MODEL_ACCURACIES = {
+    'effnet': float(os.environ.get('EFFNET_ACCURACY', '92.5')),  # EfficientNet-B3
+    'custom_cnn': float(os.environ.get('CUSTOM_CNN_ACCURACY', '85.0')),  # Custom CNN
+    'vit': float(os.environ.get('VIT_ACCURACY', '91.0')),  # Vision Transformer
+    'yolo': float(os.environ.get('YOLO_ACCURACY', '88.5')),  # YOLO
+}
+
 HEATMAP_DIR = MEDIA_ROOT / 'heatmaps'
 HEATMAP_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -27,5 +27,12 @@ export interface ReportData {
     completed_on_time: number;
     overdue: number;
   };
+  timeseries: Array<{ date: string; total: number }>;
+  greenhouse_stats: Array<{ greenhouse: string; section: string; total: number }>;
+  operator_stats: Array<{ operator: string; total: number }>;
+  economics: {
+    prevented_loss: number;
+    saved_hours: number;
+  };
 }
 

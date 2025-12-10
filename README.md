@@ -27,9 +27,16 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. ML-модель
+### 3. ML-модели
 
-Модель `best_effnet_b3.pth` включена в репозиторий и будет автоматически загружена при клонировании.
+Модели находятся в директории `models/`:
+- `best_effnet_b3.pth` - EfficientNet-B3 модель для классификации заболеваний
+- `best_custom_cnn.pth` - Кастомная CNN модель
+- `best_vit_base.pth` - Vision Transformer модель
+- `best_yolo_model.pt` - YOLO модель для детекции объектов
+- `dataset.yaml` - Конфигурация датасета для YOLO
+
+Все модели включены в репозиторий и будут автоматически загружены при клонировании.
 
 ### 4. Настройка базы данных
 

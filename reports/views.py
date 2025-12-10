@@ -1,21 +1,31 @@
 import json
 from pathlib import Path
 from typing import cast
+from datetime import timedelta
 
 from django.db.models import QuerySet
-from django.http import FileResponse, Http404
+import io
+from django.http import FileResponse, Http404, HttpResponse
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from django.utils import dateparse, timezone
 
 from common.audit import AuditLoggingMixin
 from common.typing import RoleAwareUser
 from django.conf import settings
 from .models import AuditLog, Report
 from .serializers import AuditLogSerializer, ReportSerializer
-from .services import generate_report_payload, persist_report_file
+from .services import (
+    build_excel_report,
+    build_pdf_report,
+    build_report_payload_by_type,
+    fetch_detailed_data,
+    generate_report_payload,
+    persist_report_file,
+)
 
 
 @extend_schema(
@@ -47,9 +57,11 @@ class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         return self.queryset.filter(user=user)
 
     def perform_create(self, serializer: ReportSerializer) -> None:
-        payload = generate_report_payload(
+        report_type = serializer.validated_data['report_type']
+        payload = build_report_payload_by_type(
             serializer.validated_data['period_start'],
             serializer.validated_data['period_end'],
+            report_type,
         )
         instance = self.save_and_log_create(
             serializer,
@@ -83,6 +95,85 @@ class ReportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             filename=f'report_{report.id}.json',
             content_type='application/json',
         )
+
+    @extend_schema(
+        summary='Скачать отчет в Excel (XLSX)',
+        description='Генерирует XLSX с плоским представлением key/value данных отчета.',
+        tags=['Отчеты']
+    )
+    @action(detail=True, methods=['get'], url_path='download-excel')
+    def download_excel(self, request, pk=None):
+        """Скачать отчет в XLSX (оформленные таблицы)."""
+        report = self.get_object()
+        start_dt, end_dt = report.period_start, report.period_end
+        user = cast(RoleAwareUser, report.user)
+        reporter = user.full_name if getattr(user, 'full_name', '') else user.username
+        reporter_role = getattr(getattr(user, 'role', None), 'name', '')
+        details = fetch_detailed_data(start_dt, end_dt)
+        summary = build_report_payload_by_type(start_dt, end_dt, report.report_type)
+
+        wb = build_excel_report(report, details, summary, reporter, reporter_role)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="report_{report.id}.xlsx"'
+        return response
+
+    @extend_schema(
+        summary='Скачать отчет в PDF',
+        description='Генерирует простой PDF с ключами и значениями отчета.',
+        tags=['Отчеты']
+    )
+    @action(detail=True, methods=['get'], url_path='download-pdf')
+    def download_pdf(self, request, pk=None):
+        """Скачать отчет в PDF (таблицы)."""
+        report = self.get_object()
+        start_dt, end_dt = report.period_start, report.period_end
+        user = cast(RoleAwareUser, report.user)
+        reporter = user.full_name if getattr(user, 'full_name', '') else user.username
+        reporter_role = getattr(getattr(user, 'role', None), 'name', '')
+
+        details = fetch_detailed_data(start_dt, end_dt)
+        summary = build_report_payload_by_type(start_dt, end_dt, report.report_type)
+
+        pdf = build_pdf_report(report, details, summary, reporter, reporter_role)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="report_{report.id}.pdf"'
+        return response
+
+    @extend_schema(
+        summary='Онлайн сводка (живые данные)',
+        description='Возвращает агрегированные KPI напрямую из БД за указанный период. Параметры: period_start, period_end (ISO). Если не заданы — последние 30 дней.',
+        tags=['Отчеты']
+    )
+    @action(detail=False, methods=['get'], url_path='live-summary')
+    def live_summary(self, request):
+        """Живая сводка дашборда без предварительной генерации отчёта."""
+        period_start_str = request.query_params.get('period_start')
+        period_end_str = request.query_params.get('period_end')
+
+        now = timezone.now()
+        default_start = now - timedelta(days=30)
+
+        def parse_dt(val, fallback):
+            if not val:
+                return fallback
+            dt = dateparse.parse_datetime(val)
+            if dt is None:
+                return fallback
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            return dt
+
+        start_dt = parse_dt(period_start_str, default_start)
+        end_dt = parse_dt(period_end_str, now)
+
+        payload = generate_report_payload(start_dt, end_dt)
+        return Response(payload)
 
 
 @extend_schema(
