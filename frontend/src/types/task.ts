@@ -7,6 +7,7 @@ export interface Task {
   deadline: string;
   created_at: string;
   completed_at: string | null;
+  treatment_plan?: string; // План лечения из рекомендации
 }
 
 export interface Recommendation {

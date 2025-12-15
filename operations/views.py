@@ -2,14 +2,18 @@ from typing import List, cast
 
 from django.db import transaction
 from django.db.models import QuerySet
-from rest_framework import viewsets
+from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_datetime
+from rest_framework import viewsets, status
 from rest_framework.permissions import BasePermission, IsAdminUser, IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema
 from .models import Recommendation, Task
 from .serializers import RecommendationSerializer, TaskSerializer, OperatorTaskUpdateSerializer
 from common.audit import AuditLoggingMixin
 from common.typing import RoleAwareUser
 from users.permissions import IsAgronomistOrAdmin
+from users.models import User
 
 
 @extend_schema(
@@ -65,14 +69,52 @@ class RecommendationViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             # Агроном берётся из текущего пользователя
             recommendation = self.save_and_log_create(serializer, agronomist=request.user)
 
-            if operator_id and deadline:
+            # Создаём задачу только если переданы оба параметра
+            if operator_id is not None and deadline:
+                # Преобразуем operator_id в int, если это строка
+                try:
+                    operator_id = int(operator_id)
+                except (ValueError, TypeError):
+                    raise ValidationError(
+                        {'operator_id': 'operator_id должен быть числом'},
+                        code='invalid'
+                    )
+
+                # Валидируем и преобразуем deadline
+                if isinstance(deadline, str):
+                    parsed_deadline = parse_datetime(deadline)
+                    if parsed_deadline is None:
+                        raise ValidationError(
+                            {'deadline': 'deadline должен быть в формате ISO 8601 (например: 2025-12-20T12:00:00Z)'},
+                            code='invalid'
+                        )
+                    deadline = parsed_deadline
+
+                # Проверяем, что пользователь существует
+                try:
+                    operator = User.objects.get(id=operator_id)
+                except User.DoesNotExist:
+                    raise ValidationError(
+                        {'operator_id': f'Пользователь с ID {operator_id} не найден'},
+                        code='not_found'
+                    )
+
+                # Проверяем, что у пользователя роль "Оператор"
+                if not operator.role or operator.role.name != 'Оператор':
+                    raise ValidationError(
+                        {'operator_id': f'Пользователь с ID {operator_id} не является оператором'},
+                        code='invalid_role'
+                    )
+
                 description = task_description or (
                     f'Выполнить план лечения по рекомендации #{recommendation.id} '
                     f'для диагноза #{recommendation.diagnosis_id}'
                 )
-                Task.objects.create(
+                
+                # Создаём задачу
+                task = Task.objects.create(
                     recommendation=recommendation,
-                    operator_id=operator_id,
+                    operator=operator,  # Используем объект User вместо operator_id
                     description=description,
                     status='Назначена',
                     deadline=deadline,
@@ -105,18 +147,41 @@ class TaskViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        # Если пользователь Оператор и пытается обновить задачу - используем урезанный сериализатор
+        # Если пользователь Оператор - используем урезанный сериализатор для чтения и обновления
         user = cast(RoleAwareUser, self.request.user)
-        if self.action in ['update', 'partial_update'] and user.role and user.role.name == 'Оператор':
+        if user.role and user.role.name == 'Оператор':
+            # Оператор использует ограниченный сериализатор для всех действий
             return OperatorTaskUpdateSerializer
         return TaskSerializer
+    
+    def perform_update(self, serializer: TaskSerializer) -> None:  # type: ignore[override]
+        """
+        Переопределяем обновление задачи для проверки статуса "Закрыта"
+        """
+        instance = serializer.instance
+        if instance and instance.status == 'Закрыта':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {'status': 'Нельзя изменять задачу со статусом "Закрыта"'}
+            )
+        
+        # Автоматически устанавливаем completed_at при статусе "Закрыта"
+        if serializer.validated_data.get('status') == 'Закрыта':
+            from django.utils import timezone
+            serializer.validated_data['completed_at'] = timezone.now()
+        
+        self.update_and_log(serializer)
 
     def get_queryset(self) -> QuerySet[Task]:
         user = cast(RoleAwareUser, self.request.user)
-        # Оператор видит свои задачи, Агроном - все
+        # Оператор видит только свои задачи
         if user.role and user.role.name == 'Оператор':
-            return Task.objects.filter(operator=user)
-        return Task.objects.all()
+            return Task.objects.filter(operator=user).select_related('operator', 'recommendation')
+        # Агрономы и Администраторы (включая is_staff) видят все задачи
+        # Используем select_related для оптимизации запросов (избегаем N+1)
+        queryset = Task.objects.all().select_related('operator', 'recommendation')
+        # Сортируем по дате создания (новые сверху)
+        return queryset.order_by('-created_at')
 
     def get_permissions(self) -> List[BasePermission]:
         if self.action in ['create', 'destroy']:

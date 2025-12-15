@@ -17,14 +17,8 @@ import os
 # Построение путей внутри проекта: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Быстрые настройки для разработки - не подходят для production
-# См. https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# ПРЕДУПРЕЖДЕНИЕ БЕЗОПАСНОСТИ: храните секретный ключ в секрете в production!
 SECRET_KEY = 'django-insecure-2xtru%o$^d9_n%$qw*%9y$3lr)y1pt8)z&yikb!#k5uwhm2hit'
 
-# ПРЕДУПРЕЖДЕНИЕ БЕЗОПАСНОСТИ: не запускайте с включенным debug в production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
