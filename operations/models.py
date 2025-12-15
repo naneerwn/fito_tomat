@@ -28,3 +28,4 @@ class Task(models.Model):
         db_table = 'tasks'  # [cite: 810]
         verbose_name = 'Задача'
         verbose_name_plural = 'Задачи'
+        ordering = ['-created_at']  # Сортировка по дате создания (новые сверху)

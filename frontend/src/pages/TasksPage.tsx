@@ -10,19 +10,21 @@ export function TasksPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'my' | 'pending' | 'completed'>('my');
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks, isLoading, error } = useQuery({
     queryKey: ['tasks', filter],
     queryFn: async () => {
       const response = await api.get('/tasks/');
-      let results = response.data.results as Task[];
+      let results = (response.data.results || []) as Task[];
       
+      // Фильтрация на клиенте (бэкенд уже фильтрует для операторов)
       if (filter === 'my' && user) {
         results = results.filter(t => t.operator === user.id);
       } else if (filter === 'pending') {
-        results = results.filter(t => t.status !== 'Выполнена' && (!t.completed_at || new Date(t.completed_at) > new Date(t.deadline)));
+        results = results.filter(t => t.status === 'В работе');
       } else if (filter === 'completed') {
-        results = results.filter(t => t.status === 'Выполнена');
+        results = results.filter(t => t.status === 'Закрыта');
       }
+      // filter === 'all' - показываем все задачи без дополнительной фильтрации
       
       return results;
     },
@@ -37,29 +39,13 @@ export function TasksPage() {
     },
   });
 
-  const completeTaskMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return api.patch(`/tasks/${id}/`, {
-        status: 'Выполнена',
-        completed_at: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
-  });
-
   const handleStatusChange = (taskId: number, newStatus: string) => {
     updateStatusMutation.mutate({ id: taskId, status: newStatus });
   };
 
-  const handleComplete = (taskId: number) => {
-    completeTaskMutation.mutate(taskId);
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Выполнена':
+      case 'Закрыта':
         return '#10b981';
       case 'В работе':
         return '#f59e0b';
@@ -69,6 +55,11 @@ export function TasksPage() {
         return '#64748b';
     }
   };
+  
+  const canChangeStatus = (status: string) => {
+    // Нельзя изменять задачу со статусом "Закрыта"
+    return status !== 'Закрыта';
+  };
 
   const isOverdue = (task: Task) => {
     if (task.completed_at) return false;
@@ -77,6 +68,10 @@ export function TasksPage() {
 
   if (isLoading) {
     return <div className="tasks-page">Загрузка...</div>;
+  }
+
+  if (error) {
+    return <div className="tasks-page">Ошибка загрузки задач: {String(error)}</div>;
   }
 
   return (
@@ -106,7 +101,7 @@ export function TasksPage() {
             className={filter === 'completed' ? 'active' : ''}
             onClick={() => setFilter('completed')}
           >
-            Выполненные
+            Закрытые
           </button>
         </div>
       </div>
@@ -116,7 +111,7 @@ export function TasksPage() {
           {tasks.map((task) => (
             <div
               key={task.id}
-              className={`task-card ${isOverdue(task) ? 'overdue' : ''} ${task.status === 'Выполнена' ? 'completed' : ''}`}
+              className={`task-card ${isOverdue(task) ? 'overdue' : ''} ${task.status === 'Закрыта' ? 'completed' : ''}`}
             >
               <div className="task-header">
                 <div className="task-id">Задача #{task.id}</div>
@@ -129,8 +124,15 @@ export function TasksPage() {
               </div>
               
               <div className="task-description">
-                {task.description}
+                <strong>Описание:</strong> {task.description}
               </div>
+
+              {task.treatment_plan && (
+                <div className="task-treatment-plan" style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '4px' }}>
+                  <strong>План лечения:</strong>
+                  <div style={{ marginTop: '5px' }}>{task.treatment_plan}</div>
+                </div>
+              )}
 
               <div className="task-meta">
                 <div className="task-date">
@@ -139,29 +141,36 @@ export function TasksPage() {
                 </div>
                 {task.completed_at && (
                   <div className="task-date">
-                    <strong>Выполнено:</strong> {new Date(task.completed_at).toLocaleString('ru-RU')}
+                    <strong>Закрыто:</strong> {new Date(task.completed_at).toLocaleString('ru-RU')}
                   </div>
                 )}
               </div>
 
-              {task.status !== 'Выполнена' && user?.role?.name === 'Оператор' && (
+              {canChangeStatus(task.status) && (
                 <div className="task-actions">
+                  <label htmlFor={`status-select-${task.id}`} style={{ marginRight: '10px' }}>
+                    <strong>Статус:</strong>
+                  </label>
                   <select
+                    id={`status-select-${task.id}`}
                     value={task.status}
                     onChange={(e) => handleStatusChange(task.id, e.target.value)}
                     className="status-select"
+                    disabled={updateStatusMutation.isPending}
                   >
                     <option value="Назначена">Назначена</option>
                     <option value="В работе">В работе</option>
-                    <option value="Выполнена">Выполнена</option>
+                    <option value="Закрыта">Закрыта</option>
                   </select>
-                  <button
-                    className="btn-complete"
-                    onClick={() => handleComplete(task.id)}
-                    disabled={completeTaskMutation.isPending}
-                  >
-                    {completeTaskMutation.isPending ? 'Выполнение...' : 'Отметить выполненной'}
-                  </button>
+                  {updateStatusMutation.isPending && (
+                    <span style={{ marginLeft: '10px', color: '#666' }}>Сохранение...</span>
+                  )}
+                </div>
+              )}
+              
+              {!canChangeStatus(task.status) && (
+                <div className="task-actions" style={{ color: '#666', fontStyle: 'italic', padding: '10px' }}>
+                  Задача закрыта и не может быть изменена
                 </div>
               )}
             </div>
