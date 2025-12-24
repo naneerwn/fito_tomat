@@ -476,7 +476,7 @@ def build_pdf_report(
                 wrap_cell(row['completed_at'].strftime('%Y-%m-%d %H:%M:%S') if row['completed_at'] else ''),
             ])
         elems.append(Paragraph("Рекомендации и задачи", styles['Heading2']))
-        elems.append(make_table(rt_data, col_widths=[60, 120, 60, 140, 80, 70, 70, 70]))
+        elems.append(make_table(rt_data, col_widths=[80, 120, 60, 140, 80, 70, 70, 70]))
         elems.append(Spacer(1, 12))
 
     if include_analytics:

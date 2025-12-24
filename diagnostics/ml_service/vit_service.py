@@ -15,6 +15,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
+from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from django.conf import settings
 
@@ -61,6 +63,23 @@ class ViTPredictor:
             self.model_path = str(base_dir / 'models' / 'ViT-Base_best.pth')
         
         self._load_model()
+        # GradCAM инициализируется лениво
+        self._cam: Optional[GradCAM] = None
+
+    @staticmethod
+    def _reshape_transform(tensor: torch.Tensor, height: int = 14, width: int = 14) -> torch.Tensor:
+        """
+        Преобразование выхода ViT к формату [B, C, H, W], который ожидает grad-cam.
+
+        tensor: [B, N_tokens, C], где N_tokens = 1 (CLS) + H*W.
+        """
+        # Убираем CLS-токен
+        result = tensor[:, 1:, :]  # [B, H*W, C]
+        # Собираем обратно в сетку патчей
+        result = result.reshape(tensor.size(0), height, width, tensor.size(2))  # [B, H, W, C]
+        # Преобразуем в [B, C, H, W]
+        result = result.permute(0, 3, 1, 2).contiguous()
+        return result
 
     def _load_model(self) -> None:
         """Загрузка обученной модели."""
@@ -144,89 +163,10 @@ class ViTPredictor:
         output_path: Optional[str] = None,
     ) -> np.ndarray:
         """
-        Генерация тепловой карты через attention visualization для ViT.
-
-        Параметры:
-            image_path: Путь к исходному изображению.
-            output_path: Путь для сохранения результата. Если None, не сохраняется.
-
-        Возвращает:
-            Наложенная тепловая карта (RGB numpy array).
+        Для ViT используем тот же Grad-CAM, что и для других моделей,
+        но с reshape_transform для токенов трансформера.
         """
-        # Загружаем оригинальное изображение
-        orig_img = cv2.imread(image_path)
-        if orig_img is None:
-            raise ValueError(f"Не удалось загрузить изображение: {image_path}")
-        
-        orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-        orig_img_resized = cv2.resize(orig_img, (IMG_SIZE, IMG_SIZE))
-        
-        # Подготавливаем тензор
-        img_tensor = self.preprocess_image(image_path)
-        
-        # Регистрируем хуки для перехвата attention weights
-        attention_weights = []
-        
-        def attention_hook(module, input, output):
-            # Для timm ViT, attention weights могут быть в output
-            if isinstance(output, tuple) and len(output) > 1:
-                attn = output[1]  # attention weights обычно во втором элементе
-                if attn is not None:
-                    attention_weights.append(attn.cpu().detach())
-        
-        # Регистрируем хуки на attention блоках
-        handles = []
-        for name, module in self.model.named_modules():
-            if 'attn' in name and hasattr(module, 'qkv'):
-                handle = module.register_forward_hook(attention_hook)
-                handles.append(handle)
-        
-        try:
-            # Прямой проход
-            output = self.model(img_tensor)
-            pred_idx = output.argmax(dim=1)
-            
-            # Если не удалось получить attention weights, используем альтернативный метод
-            if not attention_weights:
-                # Используем активации из промежуточных слоев
-                attention_map = self._get_activation_map(img_tensor)
-            else:
-                # Используем последние attention weights
-                # Берем среднее по всем attention heads
-                attn = attention_weights[-1]  # [batch, heads, patches, patches]
-                if len(attn.shape) == 4:
-                    # Берем attention к CLS token (первый патч)
-                    attn_to_cls = attn[0, :, 0, 1:].mean(dim=0)  # [patches]
-                    # Преобразуем в heatmap
-                    grid_size = int(np.sqrt(attn_to_cls.shape[0]))
-                    attention_map = attn_to_cls.reshape(grid_size, grid_size).numpy()
-                    attention_map = cv2.resize(attention_map, (IMG_SIZE, IMG_SIZE))
-                else:
-                    attention_map = self._get_activation_map(img_tensor)
-            
-            # Нормализация
-            attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min() + 1e-8)
-            
-            # Применяем цветовую карту
-            heatmap_colored = cv2.applyColorMap(
-                np.uint8(255 * attention_map),
-                cv2.COLORMAP_JET
-            )
-            heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
-            
-            # Наложение на оригинал
-            superimposed = np.uint8(0.6 * orig_img_resized + 0.4 * heatmap_colored)
-            
-            # Сохраняем, если указан путь
-            if output_path:
-                cv2.imwrite(output_path, cv2.cvtColor(superimposed, cv2.COLOR_RGB2BGR))
-            
-            return superimposed
-            
-        finally:
-            # Удаляем хуки
-            for handle in handles:
-                handle.remove()
+        return self.generate_gradcam(image_path=image_path, output_path=output_path)
     
     def generate_gradcam(
         self,
@@ -234,16 +174,74 @@ class ViTPredictor:
         output_path: Optional[str] = None,
     ) -> np.ndarray:
         """
-        Алиас для generate_attention_map для совместимости с другими моделями.
-        
-        Параметры:
-            image_path: Путь к исходному изображению.
-            output_path: Путь для сохранения результата. Если None, не сохраняется.
-
-        Возвращает:
-            Наложенная тепловая карта (RGB numpy array).
+        Генерация тепловой карты для ViT с использованием Grad-CAM
+        через библиотеку `pytorch-grad-cam`.
         """
-        return self.generate_attention_map(image_path, output_path)
+        # Загружаем оригинальное изображение
+        orig_img = cv2.imread(image_path)
+        if orig_img is None:
+            raise ValueError(f"Не удалось загрузить изображение: {image_path}")
+
+        orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+        orig_h, orig_w = orig_img.shape[:2]
+
+        # Подготавливаем тензор
+        img_tensor = self.preprocess_image(image_path)
+
+        # Инициализируем GradCAM один раз и переиспользуем
+        if self._cam is None:
+            # Целевой слой: нормализация последнего блока трансформера,
+            # как в рекомендованных примерах для ViT.
+            target_layers = [self.model.blocks[-1].norm1]
+            # В используемой версии pytorch-grad-cam параметр use_cuda отсутствует,
+            # устройство определяется по модели и входу.
+            self._cam = GradCAM(
+                model=self.model,
+                target_layers=target_layers,
+                reshape_transform=self._reshape_transform,
+            )
+
+        self.model.eval()
+        grayscale_cam = self._cam(input_tensor=img_tensor, targets=None)
+
+        # Берём первую карту из батча
+        grayscale_cam = grayscale_cam[0]
+        if grayscale_cam.shape != (orig_h, orig_w):
+            grayscale_cam = cv2.resize(grayscale_cam, (orig_w, orig_h))
+
+        # Нормализуем карту в диапазон [0, 1]
+        grayscale_cam = np.clip(grayscale_cam, 0.0, 1.0)
+
+        # Жёстко убираем фон: всё, что ниже порога, зануляем,
+        # чтобы подсвечивались только наиболее выраженные зоны поражения.
+        soft_threshold = 0.0  # можно подстроить в диапазоне 0.5–0.7
+        low_mask = grayscale_cam < soft_threshold
+        grayscale_cam[low_mask] = 0.0
+
+        # Наложение на оригинальное изображение:
+        # используем JET для ярких красно-оранжевых зон,
+        # но делаем фон почти прозрачным за счёт переменной альфы.
+        rgb_img_float = orig_img.astype(np.float32) / 255.0
+
+        heatmap = cv2.applyColorMap(
+            np.uint8(255 * grayscale_cam),
+            cv2.COLORMAP_JET,
+        )
+        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+
+        # Альфа зависит от значения CAM: фон (0) полностью прозрачен,
+        # сильные активации — до 0.6.
+        alpha_min, alpha_max = 0.0, 0.6
+        alpha = alpha_min + (alpha_max - alpha_min) * grayscale_cam  # [H, W] в [0.1, 0.6]
+        alpha = alpha[..., None]  # приводим к [H, W, 1] для корректного broadcasting
+
+        blended = (1.0 - alpha) * rgb_img_float + alpha * heatmap
+        superimposed = np.uint8(255 * np.clip(blended, 0.0, 1.0))
+
+        if output_path:
+            cv2.imwrite(output_path, cv2.cvtColor(superimposed, cv2.COLOR_RGB2BGR))
+
+        return superimposed
     
     def _get_activation_map(self, img_tensor: torch.Tensor) -> np.ndarray:
         """
