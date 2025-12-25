@@ -30,13 +30,10 @@ pip install -r requirements.txt
 ### 3. ML-модели
 
 Модели находятся в директории `models/`:
-- `best_effnet_b3.pth` - EfficientNet-B3 модель для классификации заболеваний
-- `best_custom_cnn.pth` - Кастомная CNN модель
-- `best_vit_base.pth` - Vision Transformer модель
-- `best_yolo_model.pt` - YOLO модель для детекции объектов
-- `dataset.yaml` - Конфигурация датасета для YOLO
-
-Все модели включены в репозиторий и будут автоматически загружены при клонировании.
+- EfficientNet-B3 модель
+- Кастомная CNN модель
+- Vision Transformer модель
+- YOLO11 модель
 
 ### 4. Настройка базы данных
 
